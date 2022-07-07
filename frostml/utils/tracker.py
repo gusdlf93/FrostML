@@ -96,4 +96,4 @@ class EpochTracker:
             else:
                 message_buffer.append(f'{k}: {v.global_average:.3f}')
         message = ' - '.join(message_buffer)
-        print(f'\r{message}', end='\n')
+        print(f'\r{message}', end=f'{self.delimiter}\n')
