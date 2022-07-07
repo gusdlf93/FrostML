@@ -171,8 +171,8 @@ def train(dataloader, model, optimizer, criterion, evaluator, epoch, args):
         loss.backward()
         optimizer.step()
 
-        header = f'Epoch[{epoch:{len(str(args.epochs))}d}/{args.epochs}] - ' \
-                 f'batch[{idx:{len(str(len(dataloader)))}d}/{len(dataloader)}]'
+        header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}] - ' \
+                 f'batch[{idx + 1:{len(str(len(dataloader)))}d}/{len(dataloader)}]'
         tracker.update(loss=loss.item())
         tracker.update(acc1=acc1.item())
         tracker.update(acc5=acc5.item())
@@ -210,8 +210,8 @@ def valid(dataloader, model, criterion, evaluator, epoch, args):
         loss = criterion(outputs, targets)
         acc1, acc5 = evaluator(outputs, targets)
 
-        header = f'Epoch[{epoch:{len(str(args.epochs))}d}/{args.epochs}] - ' \
-                 f'batch[{idx:{len(str(len(dataloader)))}d}/{len(dataloader)}]'
+        header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}] - ' \
+                 f'batch[{idx + 1:{len(str(len(dataloader)))}d}/{len(dataloader)}]'
         tracker.update(loss=loss.item())
         tracker.update(acc1=acc1.item())
         tracker.update(acc5=acc5.item())
