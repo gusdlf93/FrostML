@@ -26,8 +26,8 @@ FrostML is a library to help with developing neural networks in PyTorch.
 
 ### Train and Benchmark Scripts
 
-The reference scripts to train and benchmark models are coming soon.  
-Also, they will support distributed data parallel (DDP) training and validation with `torchrun`.
+You can find the reference for training and validation [here](TRAIN.md).  
+The reference script to benchmark models is coming soon.
 
 ## License
 
