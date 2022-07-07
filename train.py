@@ -105,11 +105,10 @@ def main(args):
         scheduler.step()
 
         checkpoint = {
+            'epoch': epoch,
             'model': model_non_distributed.state_dict(),
             'optimizer': optimizer.state_dict(),
             'scheduler': scheduler.state_dict(),
-            'epoch': epoch,
-            'args': args
         }
 
         if args.save_dir:
