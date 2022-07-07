@@ -27,3 +27,11 @@ torchrun --rdzv_backend=c10d --rdzv_endpoint=127.0.0.1:FREEPORT --nnodes=1 --npr
 ### Multi node training
 
 _Distributed training will be available via Slurm and submitit_
+
+### Troubleshooting
+
+To avoid `OMP_NUM_THREADS` warnings:
+
+```bash
+export OMP_NUM_THREADS=$NUM_THREADS
+```
