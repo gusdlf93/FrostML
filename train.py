@@ -56,6 +56,8 @@ def init_parser():
 
 def main(args):
     dist.initialize_distributed_mode(args)
+
+    # set reproducibility option
     utils.enable_reproducibility(args.seed, args.distributed)
 
     # set device
@@ -102,6 +104,7 @@ def main(args):
 
     best_accuracy = 0.
 
+    # start train and valid iterations
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             trainsampler.set_epoch(epoch)
