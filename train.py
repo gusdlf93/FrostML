@@ -7,7 +7,6 @@ import torch.nn.parallel
 import torch.utils.data
 import torch.utils.data.distributed
 import torch.utils.tensorboard
-import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 
 import frostml.core.dist as dist
@@ -24,8 +23,11 @@ def init_parser():
     parser.add_argument('data', default=None, type=str, help='the path to dataset')
 
     # arguments
-    parser.add_argument('--epochs', default=300, type=int, help='the number of total iterations to run (default: 300)')
     parser.add_argument('--device', default='cuda', type=str, help='the device to use, disabled at distributed mode')
+    parser.add_argument('--epochs', default=300, type=int, help='the number of total iterations to run (default: 300)')
+    parser.add_argument('--resume', default=None, type=str, help='resume training from the checkpoint')
+    parser.add_argument('--start-epoch', default=0, type=int, help='the manual epoch number (useful on restarts)')
+    parser.add_argument('--seed', default=None, type=int, help='the seed for reproducibility')
     parser.add_argument('--save-dir', default=None, type=str, help='the checkpoint will be saved here')
     parser.add_argument('--tensorboard-dir', default=None, type=str, help='Tensorboard log will be saved here')
 
@@ -46,10 +48,6 @@ def init_parser():
     parser.add_argument('--step-size', default=30, type=int, help='')
     parser.add_argument('--gamma', default=1e-1, type=float, help='')
 
-    # arguments for criterion
-
-    # arguments for evaluator
-
     # arguments for distributed data parallel mode
     parser.add_argument('--world-size', default=1, type=int, help='the number of nodes for distributed mode')
     parser.add_argument('--dist-url', default='env://', type=str, help='the url for distributed mode')
@@ -58,12 +56,10 @@ def init_parser():
 
 def main(args):
     dist.initialize_distributed_mode(args)
+    utils.enable_reproducibility(args.seed, args.distributed)
 
     # set device
     device = torch.device(args.device)
-
-    # set deterministic / non-deterministic training
-    cudnn.benchmark = True
 
     # initialize model
     model = models.efficientformer_l1()
@@ -83,6 +79,16 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     evaluator = frostml.module.Accuracy(topk=(1, 5))
 
+    # resume from the checkpoint
+    if args.resume:
+        checkpoint = torch.load(args.resume, map_location='cpu')
+        model_non_distributed.load_state_dict(checkpoint['model'])
+        if 'optimizer' in checkpoint and 'scheduler' in checkpoint and 'epoch' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['scheduler'])
+            args.start_epoch = checkpoint['epoch'] + 1
+        scheduler.step(args.start_epoch)
+
     # initialize vars, writers
     if args.save_dir:
         if not os.path.exists(args.save_dir):
@@ -96,7 +102,7 @@ def main(args):
 
     best_accuracy = 0.
 
-    for epoch in range(args.epochs):
+    for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             trainsampler.set_epoch(epoch)
 
@@ -183,7 +189,7 @@ def train(dataloader, model, optimizer, criterion, evaluator, epoch, args):
             args.writer.add_scalar('train / acc1 (batch)', tracker.trackers['acc1'].value, global_steps)
             args.writer.add_scalar('train / acc5 (batch)', tracker.trackers['acc5'].value, global_steps)
 
-    header = f'Epoch[{epoch:{len(str(args.epochs))}d}/{args.epochs}]'
+    header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}]'
     tracker.synchronize_between_processes()
     tracker.summarize(header=header)
 
@@ -222,7 +228,7 @@ def valid(dataloader, model, criterion, evaluator, epoch, args):
             args.writer.add_scalar('valid / acc1 (batch)', tracker.trackers['acc1'].value, global_steps)
             args.writer.add_scalar('valid / acc5 (batch)', tracker.trackers['acc5'].value, global_steps)
 
-    header = f'Epoch[{epoch:{len(str(args.epochs))}d}/{args.epochs}]'
+    header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}]'
     tracker.synchronize_between_processes()
     tracker.summarize(header=header)
 
