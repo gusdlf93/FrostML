@@ -30,7 +30,7 @@ _Distributed training will be available via Slurm and submitit_
 
 ### Troubleshooting
 
-To avoid `OMP_NUM_THREADS` warnings:
+To avoid `OMP_NUM_THREADS` warning:
 
 ```bash
 export OMP_NUM_THREADS=$NUM_THREADS
