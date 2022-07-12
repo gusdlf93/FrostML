@@ -5,6 +5,7 @@ import torch.distributed
 import frostml.core.dist as dist
 
 from torch import Tensor
+from torch.utils.tensorboard import SummaryWriter
 
 
 __all__ = ['EpochTracker']
@@ -55,9 +56,10 @@ class MAQue:
 
 class EpochTracker:
 
-    def __init__(self, delimiter: Optional[str] = None):
+    def __init__(self, delimiter: Optional[str] = None, writer: Optional[SummaryWriter] = None):
         self.trackers = defaultdict(MAQue)
         self.delimiter = delimiter if delimiter is not None else ' ' * 50
+        self.writer = writer
 
     def __getattr__(self, item):
         if item in self.trackers:
@@ -97,3 +99,14 @@ class EpochTracker:
                 message_buffer.append(f'{k}: {v.global_average:.3f}')
         message = ' - '.join(message_buffer)
         print(f'\r{message}', end=f'{self.delimiter}\n')
+
+    def publish_to_tensorboard(self, prefix, postfix, global_step):
+        if self.writer:
+            if postfix == 'batch':
+                for k, v in self.trackers.items():
+                    self.writer.add_scalar(f'{prefix} / {k} ({postfix})', v.value, global_step)
+            elif postfix == 'epoch':
+                for k, v in self.trackers.items():
+                    self.writer.add_scalar(f'{prefix} / {k} ({postfix})', v.global_average, global_step)
+            else:
+                raise ValueError
