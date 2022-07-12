@@ -51,6 +51,7 @@ def init_parser():
     # arguments for distributed data parallel mode
     parser.add_argument('--world-size', default=1, type=int, help='the number of nodes for distributed mode')
     parser.add_argument('--dist-url', default='env://', type=str, help='the url for distributed mode')
+
     return parser
 
 
@@ -66,8 +67,8 @@ def main(args):
     # initialize model
     model = models.efficientformer_l1()
     model.to(device)
-
     model_non_distributed = model
+
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
         model_non_distributed = model.module
@@ -161,15 +162,20 @@ def build_dataloader(args):
     return trainloader, validloader, trainsampler, validsampler
 
 
+def load_batch(batch, device, non_blocking=True):
+    inputs, targets = batch
+    inputs, targets = inputs.to(device, non_blocking=non_blocking), targets.to(device, non_blocking=non_blocking)
+    return inputs, targets
+
+
 def train(dataloader, model, optimizer, criterion, evaluator, epoch, args):
     # switch to train mode
     model.train()
 
-    tracker = utils.EpochTracker()
+    tracker = utils.EpochTracker(writer=args.writer)
 
     for idx, batch in enumerate(dataloader):
-        inputs, targets = batch
-        inputs, targets = inputs.to(args.device, non_blocking=True), targets.to(args.device, non_blocking=True)
+        inputs, targets = load_batch(batch, args.device)
 
         outputs = model(inputs)
         loss = criterion(outputs, targets)
@@ -184,23 +190,13 @@ def train(dataloader, model, optimizer, criterion, evaluator, epoch, args):
         tracker.update(loss=loss.item())
         tracker.update(acc1=acc1.item())
         tracker.update(acc5=acc5.item())
-        tracker.display(header=header)
-
-        if args.writer:
-            global_steps = epoch * len(dataloader) + idx
-            args.writer.add_scalar('train / loss (batch)', tracker.trackers['loss'].value, global_steps)
-            args.writer.add_scalar('train / acc1 (batch)', tracker.trackers['acc1'].value, global_steps)
-            args.writer.add_scalar('train / acc5 (batch)', tracker.trackers['acc5'].value, global_steps)
+        tracker.display(header)
+        tracker.publish_to_tensorboard('train', 'batch', epoch * len(dataloader) + idx)
 
     header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}]'
     tracker.synchronize_between_processes()
-    tracker.summarize(header=header)
-
-    if args.writer:
-        global_steps = epoch
-        args.writer.add_scalar('train / loss (epoch)', tracker.trackers['loss'].global_average, global_steps)
-        args.writer.add_scalar('train / acc1 (epoch)', tracker.trackers['acc1'].global_average, global_steps)
-        args.writer.add_scalar('train / acc5 (epoch)', tracker.trackers['acc5'].global_average, global_steps)
+    tracker.summarize(header)
+    tracker.publish_to_tensorboard('train', 'epoch', epoch)
 
 
 @torch.no_grad()
@@ -208,11 +204,10 @@ def valid(dataloader, model, criterion, evaluator, epoch, args):
     # switch to eval mode
     model.eval()
 
-    tracker = utils.EpochTracker()
+    tracker = utils.EpochTracker(writer=args.writer)
 
     for idx, batch in enumerate(dataloader):
-        inputs, targets = batch
-        inputs, targets = inputs.to(args.device, non_blocking=True), targets.to(args.device, non_blocking=True)
+        inputs, targets = load_batch(batch, args.device)
 
         outputs = model(inputs)
         loss = criterion(outputs, targets)
@@ -223,23 +218,13 @@ def valid(dataloader, model, criterion, evaluator, epoch, args):
         tracker.update(loss=loss.item())
         tracker.update(acc1=acc1.item())
         tracker.update(acc5=acc5.item())
-        tracker.display(header=header)
-
-        if args.writer:
-            global_steps = epoch * len(dataloader) + idx
-            args.writer.add_scalar('valid / loss (batch)', tracker.trackers['loss'].value, global_steps)
-            args.writer.add_scalar('valid / acc1 (batch)', tracker.trackers['acc1'].value, global_steps)
-            args.writer.add_scalar('valid / acc5 (batch)', tracker.trackers['acc5'].value, global_steps)
+        tracker.display(header)
+        tracker.publish_to_tensorboard('valid', 'batch', epoch * len(dataloader) + idx)
 
     header = f'Epoch[{epoch + 1:{len(str(args.epochs))}d}/{args.epochs}]'
     tracker.synchronize_between_processes()
-    tracker.summarize(header=header)
-
-    if args.writer:
-        global_steps = epoch
-        args.writer.add_scalar('valid / loss (epoch)', tracker.trackers['loss'].global_average, global_steps)
-        args.writer.add_scalar('valid / acc1 (epoch)', tracker.trackers['acc1'].global_average, global_steps)
-        args.writer.add_scalar('valid / acc5 (epoch)', tracker.trackers['acc5'].global_average, global_steps)
+    tracker.summarize(header)
+    tracker.publish_to_tensorboard('valid', 'epoch', epoch)
 
     return tracker.trackers['acc1'].global_average
 
